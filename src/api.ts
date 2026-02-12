@@ -789,3 +789,52 @@ export const addToBasket = async (
 
   return updated;
 };
+
+export const viewCart = async (context: LoginContext): Promise<unknown> => {
+  const storeContextResponse = await http<StoreContextsResponse>(
+    `${CATALOG_BASE}/api/v3/store-contexts`,
+    {
+      method: "POST",
+      headers: await baseHeaders(
+        context.accessToken,
+        context.phoneE164,
+        [],
+        context.userId,
+        context.customerId,
+        context.email,
+      ),
+      body: {
+        latitude: DEFAULT_LATITUDE,
+        longitude: DEFAULT_LONGITUDE,
+      },
+    },
+  );
+
+  const storeContexts = (storeContextResponse.items ?? []).filter(
+    (item): item is { storeId: string; [key: string]: unknown } =>
+      Boolean(item.storeId),
+  );
+  const updateStoreIds = storeContexts.map((item) => item.storeId);
+
+  return http(
+    `${ORDERS_BASE}/api/v2/carts/user?useProductMinInfoAnnotation=true`,
+    {
+      method: "POST",
+      headers: {
+        ...(await baseHeaders(
+          context.accessToken,
+          context.phoneE164,
+          updateStoreIds,
+          context.userId,
+          context.customerId,
+          context.email,
+        )),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: {
+        storeContexts,
+        includeV2ReplacementOptions: true,
+      },
+    },
+  );
+};

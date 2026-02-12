@@ -12,6 +12,7 @@ import {
   searchProducts,
   startOtpFlow,
   verifyUser,
+  viewCart,
 } from "./api";
 import { AUTH_FILE } from "./config";
 import { type AuthState, readJsonFile, writeJsonFile } from "./storage";
@@ -40,6 +41,7 @@ Usage:
   checkers-sixty60 verify-otp --phone <phone> --otp <code> [--reference <ref>]
   checkers-sixty60 login --phone <phone> --otp <code> [--reference <ref>]
   checkers-sixty60 orders [--json] [--compact]
+  checkers-sixty60 view-cart
   checkers-sixty60 search --query <text> [--page <n>] [--size <n>] [--compact]
   checkers-sixty60 add-to-basket --product-id <id> [--qty <n>] [--cart-id <id>]
 
@@ -48,6 +50,7 @@ Examples:
   checkers-sixty60 verify-otp --phone 0821234567 --otp 1234
   checkers-sixty60 orders --json
   checkers-sixty60 orders --compact
+  checkers-sixty60 view-cart
   checkers-sixty60 search --query milk --compact
   checkers-sixty60 add-to-basket --product-id 5d3af63cf434cf8420737e3e --qty 1
 `;
@@ -427,6 +430,17 @@ const runAddToBasket = async (
   console.log(JSON.stringify(result, null, 2));
 };
 
+const runViewCart = async (): Promise<void> => {
+  let auth = await readJsonFile<AuthState>(AUTH_FILE);
+  if (!auth) {
+    throw new Error("No local auth found. Run login first.");
+  }
+
+  auth = await hydrateAuth(auth);
+  const result = await viewCart(toLoginContext(auth));
+  console.log(JSON.stringify(result, null, 2));
+};
+
 const runInteractiveMenu = async (): Promise<void> => {
   const action = await select({
     message: "Select action",
@@ -496,6 +510,11 @@ const main = async (): Promise<void> => {
 
   if (cli.command === "orders") {
     await runOrders(cli.json, cli.compact);
+    return;
+  }
+
+  if (cli.command === "view-cart") {
+    await runViewCart();
     return;
   }
 

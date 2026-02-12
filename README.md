@@ -43,6 +43,9 @@ bun run start orders --json
 # Fetch orders (compact output)
 bun run start orders --compact
 
+# View current cart
+bun run start view-cart
+
 # Search products
 bun run start search --query milk --compact
 
