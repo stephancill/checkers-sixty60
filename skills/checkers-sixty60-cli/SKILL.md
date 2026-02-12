@@ -1,6 +1,6 @@
 ---
 name: checkers-sixty60-cli
-description: Use the Checkers Sixty60 CLI from terminal-based agent workflows. Trigger when the user asks to authenticate, request/verify OTP, fetch orders, search products, or add items to basket via the local `checkers-sixty60` command.
+description: Use the Checkers Sixty60 CLI from terminal-based agent workflows. Trigger when the user asks to authenticate, request/verify OTP, fetch orders, view cart contents, search products, or add items to basket via the local `checkers-sixty60` command.
 ---
 
 # Verify CLI Availability
@@ -28,6 +28,14 @@ Use one of:
 - Full JSON: `checkers-sixty60 orders --json`
 
 Prefer `--compact` when an agent needs structured summaries quickly.
+
+# View Cart
+
+Use:
+
+- `checkers-sixty60 view-cart`
+
+Use this before and after basket mutations to verify line items and totals.
 
 # Search Products
 
