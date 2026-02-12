@@ -1,5 +1,5 @@
 import { http } from "./http";
-import { getOrCreateDeviceId } from "./storage";
+import { getOrCreateDeviceId, readLocationSettings } from "./storage";
 
 const BFF_BASE = "https://dc-app-backend-for-frontend.sixty60.co.za";
 const DSL_BASE =
@@ -17,6 +17,29 @@ const APP_BUILD = "1769786479";
 
 const DEFAULT_LATITUDE = -33.9249;
 const DEFAULT_LONGITUDE = 18.4241;
+
+const parseCoordinate = (value: string | undefined): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const getLocation = async (): Promise<{
+  latitude: number;
+  longitude: number;
+}> => {
+  const saved = await readLocationSettings();
+  const envLatitude = parseCoordinate(process.env.SIXTY60_LATITUDE);
+  const envLongitude = parseCoordinate(process.env.SIXTY60_LONGITUDE);
+
+  return {
+    latitude: envLatitude ?? saved?.latitude ?? DEFAULT_LATITUDE,
+    longitude: envLongitude ?? saved?.longitude ?? DEFAULT_LONGITUDE,
+  };
+};
 
 type BffTokenResponse = {
   access_token: string;
@@ -314,6 +337,8 @@ export const getStoreIds = async (
   customerId: string,
   email: string,
 ): Promise<string[]> => {
+  const location = await getLocation();
+
   const data = await http<StoreContextsResponse>(
     `${CATALOG_BASE}/api/v3/store-contexts`,
     {
@@ -327,8 +352,8 @@ export const getStoreIds = async (
         email,
       ),
       body: {
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
+        latitude: location.latitude,
+        longitude: location.longitude,
       },
     },
   );
@@ -520,6 +545,8 @@ export const addToBasket = async (
   quantity = 1,
   cartId?: string,
 ): Promise<unknown> => {
+  const location = await getLocation();
+
   const storeContextResponse = await http<StoreContextsResponse>(
     `${CATALOG_BASE}/api/v3/store-contexts`,
     {
@@ -533,8 +560,8 @@ export const addToBasket = async (
         context.email,
       ),
       body: {
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
+        latitude: location.latitude,
+        longitude: location.longitude,
       },
     },
   );
@@ -791,6 +818,8 @@ export const addToBasket = async (
 };
 
 export const viewCart = async (context: LoginContext): Promise<unknown> => {
+  const location = await getLocation();
+
   const storeContextResponse = await http<StoreContextsResponse>(
     `${CATALOG_BASE}/api/v3/store-contexts`,
     {
@@ -804,8 +833,8 @@ export const viewCart = async (context: LoginContext): Promise<unknown> => {
         context.email,
       ),
       body: {
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
+        latitude: location.latitude,
+        longitude: location.longitude,
       },
     },
   );

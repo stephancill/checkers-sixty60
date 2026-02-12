@@ -14,8 +14,13 @@ import {
   verifyUser,
   viewCart,
 } from "./api";
-import { AUTH_FILE } from "./config";
-import { type AuthState, readJsonFile, writeJsonFile } from "./storage";
+import { AUTH_FILE, SETTINGS_FILE } from "./config";
+import {
+  type AuthState,
+  readJsonFile,
+  writeJsonFile,
+  writeLocationSettings,
+} from "./storage";
 
 type ParsedCli = {
   command?: string;
@@ -28,6 +33,8 @@ type ParsedCli = {
   page?: number;
   size?: number;
   qty?: number;
+  lat?: number;
+  lng?: number;
   json: boolean;
   compact: boolean;
   help: boolean;
@@ -41,6 +48,7 @@ Usage:
   checkers-sixty60 verify-otp --phone <phone> --otp <code> [--reference <ref>]
   checkers-sixty60 login --phone <phone> --otp <code> [--reference <ref>]
   checkers-sixty60 orders [--json] [--compact]
+  checkers-sixty60 set-location --lat <value> --lng <value>
   checkers-sixty60 view-cart
   checkers-sixty60 search --query <text> [--page <n>] [--size <n>] [--compact]
   checkers-sixty60 add-to-basket --product-id <id> [--qty <n>] [--cart-id <id>]
@@ -50,6 +58,7 @@ Examples:
   checkers-sixty60 verify-otp --phone 0821234567 --otp 1234
   checkers-sixty60 orders --json
   checkers-sixty60 orders --compact
+  checkers-sixty60 set-location --lat -26.2041 --lng 28.0473
   checkers-sixty60 view-cart
   checkers-sixty60 search --query milk --compact
   checkers-sixty60 add-to-basket --product-id 5d3af63cf434cf8420737e3e --qty 1
@@ -89,6 +98,8 @@ const parseCliArgs = (): ParsedCli => {
     page: getNumberFlag("--page"),
     size: getNumberFlag("--size"),
     qty: getNumberFlag("--qty"),
+    lat: getNumberFlag("--lat"),
+    lng: getNumberFlag("--lng"),
     json: args.includes("--json"),
     compact: args.includes("--compact"),
     help: args.includes("--help") || args.includes("-h"),
@@ -256,6 +267,26 @@ const ensureQuantity = (qty?: number): number => {
   const value = qty ?? 1;
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error("--qty must be a positive integer");
+  }
+  return value;
+};
+
+const ensureLatitude = (value?: number): number => {
+  if (value === undefined || !Number.isFinite(value)) {
+    throw new Error("Missing required --lat option");
+  }
+  if (value < -90 || value > 90) {
+    throw new Error("--lat must be between -90 and 90");
+  }
+  return value;
+};
+
+const ensureLongitude = (value?: number): number => {
+  if (value === undefined || !Number.isFinite(value)) {
+    throw new Error("Missing required --lng option");
+  }
+  if (value < -180 || value > 180) {
+    throw new Error("--lng must be between -180 and 180");
   }
   return value;
 };
@@ -441,6 +472,16 @@ const runViewCart = async (): Promise<void> => {
   console.log(JSON.stringify(result, null, 2));
 };
 
+const runSetLocation = async (lat: number, lng: number): Promise<void> => {
+  const saved = await writeLocationSettings(lat, lng);
+  console.log(
+    `Saved location ${saved.latitude}, ${saved.longitude} to ${SETTINGS_FILE}`,
+  );
+  console.log(
+    "Env vars SIXTY60_LATITUDE/SIXTY60_LONGITUDE still override saved values when set.",
+  );
+};
+
 const runInteractiveMenu = async (): Promise<void> => {
   const action = await select({
     message: "Select action",
@@ -510,6 +551,11 @@ const main = async (): Promise<void> => {
 
   if (cli.command === "orders") {
     await runOrders(cli.json, cli.compact);
+    return;
+  }
+
+  if (cli.command === "set-location") {
+    await runSetLocation(ensureLatitude(cli.lat), ensureLongitude(cli.lng));
     return;
   }
 

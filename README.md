@@ -56,3 +56,23 @@ bun run start add-to-basket --product-id 5d3af63cf434cf8420737e3e --qty 1
 The CLI saves tokens to:
 
 - `~/.checkers-sixty60/auth.json`
+
+## Location
+
+Store and cart context requests use latitude/longitude. By default the CLI uses generic Cape Town coordinates.
+
+Persist location across sessions:
+
+```bash
+checkers-sixty60 set-location --lat -26.2041 --lng 28.0473
+```
+
+Override per session with env vars:
+
+```bash
+SIXTY60_LATITUDE=-26.2041 SIXTY60_LONGITUDE=28.0473 checkers-sixty60 view-cart
+```
+
+Saved settings are stored in `~/.checkers-sixty60/settings.json`.
+
+Use your own nearby coordinates for best store availability and search/cart behavior.

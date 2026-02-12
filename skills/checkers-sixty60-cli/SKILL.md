@@ -19,6 +19,13 @@ Notes:
 
 - Keep phone in SA format accepted by the CLI (for example `0821234567` or `+27821234567`).
 - The CLI stores auth state in `~/.checkers-sixty60/auth.json`.
+- Persist location with `checkers-sixty60 set-location --lat <value> --lng <value>`.
+- Set location with `SIXTY60_LATITUDE` and `SIXTY60_LONGITUDE` when store results/cart context look wrong for the user area.
+
+Example:
+
+- `checkers-sixty60 set-location --lat -26.2041 --lng 28.0473`
+- `SIXTY60_LATITUDE=-26.2041 SIXTY60_LONGITUDE=28.0473 checkers-sixty60 view-cart`
 
 # Fetch Orders
 

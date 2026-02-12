@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { DEVICE_FILE } from "./config";
+import { DEVICE_FILE, SETTINGS_FILE } from "./config";
 
 export type AuthState = {
   phoneE164: string;
@@ -16,6 +16,12 @@ export type AuthState = {
 
 type DeviceState = {
   deviceId: string;
+  savedAt: string;
+};
+
+export type LocationSettings = {
+  latitude: number;
+  longitude: number;
   savedAt: string;
 };
 
@@ -55,4 +61,22 @@ export const getOrCreateDeviceId = async (): Promise<string> => {
     savedAt: new Date().toISOString(),
   });
   return deviceId;
+};
+
+export const readLocationSettings =
+  async (): Promise<LocationSettings | null> => {
+    return readJsonFile<LocationSettings>(SETTINGS_FILE);
+  };
+
+export const writeLocationSettings = async (
+  latitude: number,
+  longitude: number,
+): Promise<LocationSettings> => {
+  const settings: LocationSettings = {
+    latitude,
+    longitude,
+    savedAt: new Date().toISOString(),
+  };
+  await writeJsonFile(SETTINGS_FILE, settings);
+  return settings;
 };
