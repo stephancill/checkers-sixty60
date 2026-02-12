@@ -59,14 +59,38 @@ type CartsResponse = {
   carts?: Array<{
     item?: {
       id?: string;
+      serviceOptionId?: string;
       deliveryAddress?: {
         identifier?: string;
       };
       lineItems?: Array<{
+        id?: string;
+        productId?: string;
+        status?: string;
+        price?: number;
+        priceFactor?: number;
+        previousPrice?: number;
+        instruction?: string;
         quantity?: number;
+        specialInstruction?: string;
+        specialInstructions?: string;
+        storeId?: string;
+        replacementPreferenceId?: string;
+        optionSelections?: unknown[];
+        selectedWeightRange?: unknown;
+        missionName?: string;
+        missionType?: string;
+        addToBasketType?: string;
+        addToBasketJourney?: string;
+        serviceOptionId?: string;
+        isStockAvailable?: boolean;
+        ranged?: boolean;
+        requiresOver18?: boolean;
+        isSponsoredProduct?: boolean;
+        hasAlcohol?: boolean;
         product?: {
           id?: string;
-        };
+        } | null;
       }>;
       [key: string]: unknown;
     };
@@ -496,6 +520,31 @@ export const addToBasket = async (
   quantity = 1,
   cartId?: string,
 ): Promise<unknown> => {
+  const storeContextResponse = await http<StoreContextsResponse>(
+    `${CATALOG_BASE}/api/v3/store-contexts`,
+    {
+      method: "POST",
+      headers: await baseHeaders(
+        context.accessToken,
+        context.phoneE164,
+        [],
+        context.userId,
+        context.customerId,
+        context.email,
+      ),
+      body: {
+        latitude: DEFAULT_LATITUDE,
+        longitude: DEFAULT_LONGITUDE,
+      },
+    },
+  );
+
+  const storeContexts = (storeContextResponse.items ?? []).filter(
+    (item): item is { storeId: string; [key: string]: unknown } =>
+      Boolean(item.storeId),
+  );
+  const updateStoreIds = storeContexts.map((item) => item.storeId);
+
   const cartsResponse = await http<CartsResponse>(
     `${ORDERS_BASE}/api/v2/carts/user?useProductMinInfoAnnotation=true`,
     {
@@ -504,7 +553,7 @@ export const addToBasket = async (
         ...(await baseHeaders(
           context.accessToken,
           context.phoneE164,
-          context.storeIds,
+          updateStoreIds,
           context.userId,
           context.customerId,
           context.email,
@@ -512,27 +561,101 @@ export const addToBasket = async (
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: {
-        storeContexts: buildStoreContexts(context.storeIds),
+        storeContexts,
         includeV2ReplacementOptions: true,
       },
     },
   );
 
-  const carts = cartsResponse.carts ?? [];
+  const carts = (cartsResponse.carts ?? []).filter((cart) =>
+    Boolean(cart.item?.id),
+  );
   const selected = cartId
     ? carts.find((cart) => cart.item?.id === cartId)
-    : carts.find((cart) => Boolean(cart.item?.id));
+    : (carts.find(
+        (cart) => cart.item?.serviceOptionId === "sixty-min-delivery",
+      ) ?? carts[0]);
 
-  if (!selected?.item?.id) {
+  if (!selected?.item?.id || !selected.item.serviceOptionId) {
     throw new Error("Could not locate a cart to update");
   }
 
-  const currentLineItems = selected.item.lineItems ?? [];
+  const productLookupHeaders = await baseHeaders(
+    context.accessToken,
+    context.phoneE164,
+    updateStoreIds,
+    context.userId,
+    context.customerId,
+    context.email,
+  );
+  const storeIdsCsv = updateStoreIds.join(",");
+  productLookupHeaders.storeids = storeIdsCsv;
+  productLookupHeaders["istio-storeIds"] = storeIdsCsv;
+
+  const productLookup = await http<{
+    products?: Array<{
+      id?: string;
+      storeId?: string;
+      priceWithoutDecimal?: number;
+      oldPrice?: number;
+      priceFactor?: number;
+      serviceOptionId?: string;
+      isStockAvailable?: boolean;
+      requiresOver18?: boolean;
+      isSponsored?: boolean;
+      hasAlcohol?: boolean;
+    }>;
+  }>(`${CATALOG_BASE}/api/v3/products/product-list-page`, {
+    method: "POST",
+    query: {
+      isCarousel: true,
+      includePromotions: true,
+      promotionChannel: "sixty60",
+      isXtraSavingsMember: true,
+      particularMemberBonusBuyIds: "",
+      t: Date.now(),
+    },
+    headers: productLookupHeaders,
+    body: {
+      filter: {
+        productListSource: {
+          productIds: [productId],
+        },
+        paginationOptions: {
+          page: 0,
+          pageSize: 20,
+        },
+        filterOptions: {
+          dealsOnly: false,
+          brandOptions: [],
+          departmentOptions: [],
+          facetOptions: [],
+          serviceOptions: [],
+          filterIds: [],
+        },
+        showNotRangedProducts: false,
+      },
+      userContext: {
+        storeContexts,
+        userId: context.userId,
+      },
+    },
+  });
+
+  const productData = productLookup.products?.find(
+    (product) => product.id === productId,
+  );
+  if (!productData) {
+    throw new Error(`Product ${productId} not found in current store context`);
+  }
+
+  const currentLineItems = [...(selected.item.lineItems ?? [])];
   const existingIndex = currentLineItems.findIndex(
-    (line) => line.product?.id === productId,
+    (line) => line.productId === productId || line.product?.id === productId,
   );
 
   const nextLineItems = [...currentLineItems];
+  const defaultStoreId = productData.storeId ?? updateStoreIds[0] ?? "";
   if (existingIndex >= 0) {
     const existing = nextLineItems[existingIndex];
     nextLineItems[existingIndex] = {
@@ -541,35 +664,128 @@ export const addToBasket = async (
     };
   } else {
     nextLineItems.push({
+      id: "",
+      productId,
+      price: productData.priceWithoutDecimal ?? 0,
+      priceFactor: productData.priceFactor ?? 100,
+      previousPrice:
+        productData.oldPrice ?? productData.priceWithoutDecimal ?? 0,
       quantity,
-      product: {
-        id: productId,
-      },
+      specialInstructions: "",
+      storeId: defaultStoreId,
+      replacementPreferenceId: "",
+      optionSelections: [],
+      selectedWeightRange: null,
+      missionName: "",
+      missionType: "",
+      addToBasketType: "quick_add",
+      addToBasketJourney: "main_search_results",
+      serviceOptionId:
+        productData.serviceOptionId ?? selected.item.serviceOptionId,
+      isStockAvailable: productData.isStockAvailable ?? true,
+      ranged: false,
+      requiresOver18: productData.requiresOver18 ?? false,
+      isSponsoredProduct: productData.isSponsored ?? false,
+      hasAlcohol: productData.hasAlcohol ?? false,
     });
   }
 
-  const payload = {
-    ...selected.item,
-    deliveryAddressId: selected.item.deliveryAddress?.identifier ?? "",
-    lineItems: nextLineItems.map((line) => ({
+  const normalizedTargetLineItems = nextLineItems.map((line) => {
+    const normalized = {
       ...line,
-      productId: line.product?.id,
-    })),
-  };
+      productId: line.productId ?? line.product?.id,
+      product: undefined,
+    } as Record<string, unknown>;
+    return normalized;
+  });
 
-  return http(
-    `${ORDERS_BASE}/api/v1/carts/${selected.item.id}?include_v2_replacement_preferences=true&includePromotions=true&promotionChannel=sixty60&useProductMinInfoAnnotation=true`,
+  const cartsForUpdate: Array<{
+    id: string;
+    serviceOptionId: string;
+    lineItems: Array<Record<string, unknown>>;
+  }> = [];
+
+  for (const cart of carts) {
+    const item = cart.item;
+    if (!item?.id || !item.serviceOptionId) {
+      continue;
+    }
+
+    if (item.id === selected.item?.id) {
+      cartsForUpdate.push({
+        id: item.id,
+        serviceOptionId: item.serviceOptionId,
+        lineItems: normalizedTargetLineItems,
+      });
+      continue;
+    }
+
+    cartsForUpdate.push({
+      id: item.id,
+      serviceOptionId: item.serviceOptionId,
+      lineItems: (item.lineItems ?? []) as Array<Record<string, unknown>>,
+    });
+  }
+
+  const deliveryAddressId =
+    selected.item.deliveryAddress?.identifier ??
+    carts
+      .map((cart) => cart.item?.deliveryAddress?.identifier)
+      .find((identifier): identifier is string => Boolean(identifier)) ??
+    "";
+
+  const updateHeaders = await baseHeaders(
+    context.accessToken,
+    context.phoneE164,
+    updateStoreIds,
+    context.userId,
+    context.customerId,
+    context.email,
+  );
+  updateHeaders.storeids = storeIdsCsv;
+  updateHeaders["istio-storeIds"] = storeIdsCsv;
+  updateHeaders["aws-cf-cd-storeid"] = storeIdsCsv;
+  updateHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+
+  const updated = await http(
+    `${ORDERS_BASE}/api/v3/carts/update?useProductMinInfoAnnotation=true`,
     {
-      method: "PUT",
-      headers: await baseHeaders(
-        context.accessToken,
-        context.phoneE164,
-        context.storeIds,
-        context.userId,
-        context.customerId,
-        context.email,
-      ),
-      body: payload,
+      method: "POST",
+      headers: updateHeaders,
+      body: {
+        carts: cartsForUpdate,
+        deliveryAddressId,
+        storeContexts,
+        targetCart: selected.item.id,
+      },
     },
   );
+
+  for (const cart of cartsForUpdate) {
+    const promotionHeaders = await baseHeaders(
+      context.accessToken,
+      context.phoneE164,
+      updateStoreIds,
+      context.userId,
+      context.customerId,
+      context.email,
+    );
+    promotionHeaders.storeids = JSON.stringify(updateStoreIds);
+    promotionHeaders["istio-storeIds"] = JSON.stringify(updateStoreIds);
+    promotionHeaders["aws-cf-cd-storeid"] = storeIdsCsv;
+    promotionHeaders["Content-Type"] = "application/x-www-form-urlencoded";
+
+    await http(
+      `${ORDERS_BASE}/api/v1/carts/${cart.id}/update-promotions?include_v2_replacement_preferences=true&useProductMinInfoAnnotation=true`,
+      {
+        method: "POST",
+        headers: promotionHeaders,
+        body: {
+          storeContexts,
+        },
+      },
+    );
+  }
+
+  return updated;
 };
