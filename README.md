@@ -13,6 +13,21 @@ bun install
 bun run start
 ```
 
+## Install
+
+```bash
+npm i -g checkers-sixty60
+checkers-sixty60 --help
+```
+
+## Agent Skill
+
+This repo includes a local skill for terminal-based AI agents:
+
+- `skills/checkers-sixty60-cli/SKILL.md`
+
+Use it when an agent needs structured guidance for auth, orders, product search, and basket operations through the `checkers-sixty60` CLI.
+
 ## Non-interactive usage
 
 ```bash
