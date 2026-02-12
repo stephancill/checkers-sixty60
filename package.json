@@ -1,0 +1,29 @@
+{
+  "name": "checkers-sixty60",
+  "version": "0.1.0",
+  "private": false,
+  "type": "commonjs",
+  "bin": {
+    "checkers-sixty60": "dist/cli.js"
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "start": "bun run src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}
