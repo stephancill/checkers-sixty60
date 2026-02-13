@@ -162,8 +162,14 @@ const toCompactSearchResults = (payload: unknown) => {
       id?: string;
       name?: string;
       brandName?: string;
-      currentPrice?: number;
-      price?: { now?: number };
+      priceWithoutDecimal?: number;
+      oldPrice?: number;
+      discount?: number;
+      priceFactor?: number;
+      currency?: string;
+      storeId?: string;
+      serviceOptionId?: string;
+      isStockAvailable?: boolean;
     }>;
   };
 
@@ -171,7 +177,14 @@ const toCompactSearchResults = (payload: unknown) => {
     id: product.id,
     name: product.name,
     brand: product.brandName,
-    price: product.currentPrice ?? product.price?.now,
+    price: product.priceWithoutDecimal,
+    oldPrice: product.oldPrice,
+    discount: product.discount,
+    priceFactor: product.priceFactor,
+    currency: product.currency,
+    storeId: product.storeId,
+    serviceOptionId: product.serviceOptionId,
+    inStock: product.isStockAvailable,
   }));
 };
 
